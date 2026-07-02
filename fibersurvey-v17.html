@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>FiberSurvey v9 – Khảo sát cáp quang</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  .leaflet-container { background: #1a1f2e !important; }
+  .leaflet-tile-pane { filter: brightness(0.95) saturate(1.1); }
+  .point-label { background:rgba(0,0,0,.75)!important;border:none!important;border-radius:4px!important;color:#e3b341!important;font-size:10px!important;font-weight:700!important;padding:2px 5px!important;white-space:nowrap!important;box-shadow:none!important; }
+  .point-label::before { display:none!important; }
+  .custom-popup .leaflet-popup-content-wrapper { background:#161b22;border:1px solid #30363d;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.6); }
+  .custom-popup .leaflet-popup-tip { background:#161b22; }
+  .custom-popup .leaflet-popup-content { margin:12px; }
+  :root {
+    --bg:#0d1117; --surface:#161b22; --surface2:#21262d; --border:#30363d;
+    --accent:#f78166; --accent2:#58a6ff; --accent3:#3fb950; --warn:#e3b341;
+    --text:#e6edf3; --text2:#8b949e; --radius:12px;
+    --font:'SF Pro Display',-apple-system,BlinkMacSystemFont,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
+  .header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px 10px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .header-logo{width:32px;height:32px;background:linear-gradient(135deg,var(--accent2),var(--accent));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+  .header-title{font-size:17px;font-weight:700;letter-spacing:-.3px;}
+  .header-sub{font-size:11px;color:var(--text2);}
+  .header-right{margin-left:auto;display:flex;gap:8px;}
+  .pill{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:11px;color:var(--text2);cursor:pointer;white-space:nowrap;}
+  .pill.active{border-color:var(--accent3);color:var(--accent3);}
+  .tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+  .tab{flex:1;padding:10px 4px 8px;text-align:center;font-size:10px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;user-select:none;}
+  .tab.active{color:var(--accent2);border-color:var(--accent2);}
+  .tab-icon{font-size:18px;display:block;margin-bottom:2px;}
+  .screen{display:none;flex:1;overflow:hidden;flex-direction:column;}
+  .screen.active{display:flex;}
+  #map{flex:1; transform: rotate(calc(var(--map-rotation,0) * 1deg)); transform-origin: 50% 50%; }
+  .map-counter-rotate{ transform: rotate(calc(var(--map-rotation,0) * -1deg)); }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip{ transform: rotate(calc(var(--map-rotation,0) * -1deg)); }
+  #compassBtn.recording{ background:var(--accent2); border-color:var(--accent2); }
+  .map-toolbar-left{position:absolute;top:52px;left:12px;z-index:1000;}
+  .map-toolbar-right{position:absolute;top:52px;right:12px;display:flex;flex-direction:column;gap:8px;z-index:1000;}
+  .map-btn{width:46px;height:46px;background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5);user-select:none;}
+  .map-btn.recording{background:var(--accent);border-color:var(--accent);}
+  .map-btn-xl{width:72px;height:72px;background:var(--accent);border:2px solid rgba(255,255,255,.2);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:30px;cursor:pointer;box-shadow:0 6px 24px rgba(247,129,102,.4);user-select:none;gap:2px;}
+  .map-btn-xl span{font-size:10px;font-weight:700;color:#fff;letter-spacing:.3px;}
+  .map-status{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(22,27,34,.9);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:12px;z-index:1000;white-space:nowrap;backdrop-filter:blur(8px);}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;}
+  .dot.green{background:var(--accent3);animation:pulse 1.5s infinite;}
+  .dot.red{background:var(--accent);}
+  .dot.yellow{background:var(--warn);}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .scroll{flex:1;overflow-y:auto;padding:12px;}
+  .scroll::-webkit-scrollbar{display:none;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;}
+  .card-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .card-icon{font-size:18px;} .card-title{font-size:14px;font-weight:600;} .card-meta{font-size:11px;color:var(--text2);margin-left:auto;}
+  label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px;margin-top:10px;}
+  label:first-of-type{margin-top:0;}
+  input,select,textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:14px;padding:9px 12px;outline:none;transition:border .2s;}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent2);}
+  textarea{resize:vertical;min-height:70px;}
+  select option{background:var(--surface2);}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:10px;font-family:var(--font);font-size:14px;font-weight:600;padding:11px 18px;cursor:pointer;transition:opacity .15s;user-select:none;}
+  .btn:active{opacity:.75;}
+  .btn-primary{background:var(--accent2);color:#fff;}
+  .btn-danger{background:var(--accent);color:#fff;}
+  .btn-success{background:var(--accent3);color:#fff;}
+  .btn-ghost{background:var(--surface2);border:1px solid var(--border);color:var(--text);}
+  .btn-full{width:100%;} .btn-sm{padding:7px 12px;font-size:12px;border-radius:8px;}
+  .coords-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;gap:12px;font-size:12px;font-family:'SF Mono',monospace;}
+  .coord-item{display:flex;flex-direction:column;gap:2px;}
+  .coord-label{font-size:10px;color:var(--text2);font-family:var(--font);}
+  .coord-val{color:var(--accent3);font-weight:600;}
+  .point-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .point-item:last-child{border-bottom:none;}
+  .point-badge{width:28px;height:28px;border-radius:50%;background:var(--accent2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+  .point-info{flex:1;} .point-name{font-size:13px;font-weight:600;} .point-coord{font-size:11px;color:var(--text2);font-family:'SF Mono',monospace;}
+  .point-actions{display:flex;gap:6px;}
+  .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;}
+  .photo-thumb{aspect-ratio:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;position:relative;overflow:hidden;}
+  .photo-thumb img{width:100%;height:100%;object-fit:cover;}
+  .photo-thumb .photo-del{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.7);border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;cursor:pointer;}
+  .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+  .stat-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 10px;text-align:center;}
+  .stat-val{font-size:22px;font-weight:800;color:var(--accent2);}
+  .stat-lbl{font-size:10px;color:var(--text2);margin-top:2px;}
+  /* Survey cards */
+  .survey-item{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 14px 14px 0;margin-bottom:10px;display:flex;align-items:stretch;gap:0;cursor:pointer;overflow:hidden;transition:border-color .2s;}
+  .survey-item:active{opacity:.85;}
+  .survey-stripe{width:4px;flex-shrink:0;margin-right:14px;}
+  .survey-stripe.done{background:var(--accent3);}
+  .survey-stripe.progress{background:var(--accent2);}
+  .survey-stripe.draft{background:var(--text2);}
+  .survey-icon{font-size:26px;flex-shrink:0;margin-right:12px;display:flex;align-items:center;}
+  .survey-info{flex:1;min-width:0;}
+  .survey-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .survey-detail{font-size:11px;color:var(--text2);margin-top:3px;}
+  .survey-meta-row{display:flex;gap:10px;margin-top:6px;}
+  .survey-chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-size:10px;color:var(--text2);}
+  .survey-badge{flex-shrink:0;align-self:center;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;}
+  .badge-done{background:rgba(63,185,80,.15);color:var(--accent3);border:1px solid rgba(63,185,80,.3);}
+  .badge-progress{background:rgba(88,166,255,.15);color:var(--accent2);border:1px solid rgba(88,166,255,.3);}
+  .badge-draft{background:rgba(139,148,158,.1);color:var(--text2);border:1px solid var(--border);}
+  .survey-empty{text-align:center;padding:40px 20px;color:var(--text2);}
+  .survey-empty-icon{font-size:48px;margin-bottom:12px;opacity:.5;}
+  .survey-empty-text{font-size:14px;font-weight:600;margin-bottom:6px;color:var(--text);}
+  .survey-empty-sub{font-size:12px;}
+  /* Modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:flex-end;justify-content:center;touch-action:manipulation;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:16px 16px 34px;width:100%;max-height:85dvh;overflow-y:auto;animation:slideUp .25s ease;touch-action:manipulation;}
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;}
+  .modal-title{font-size:17px;font-weight:700;margin-bottom:14px;}
+  .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:10px 18px;font-size:13px;z-index:3000;box-shadow:0 8px 24px rgba(0,0,0,.5);opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
+  .toast.show{opacity:1;}
+  .flex-row{display:flex;gap:8px;align-items:center;}
+  .flex-1{flex:1;}
+  .text-sm{font-size:12px;color:var(--text2);}
+  .mt-8{margin-top:8px;}
+  /* Numpad nhỏ hơn 20%, chặn double-tap zoom và long-press copy */
+  .kb-num{
+    background:var(--surface2);color:var(--text);border:1px solid var(--border);
+    border-radius:8px;padding:9px;font-size:15px;font-weight:700;cursor:pointer;
+    text-align:center;font-family:var(--font);
+    user-select:none;-webkit-user-select:none;
+    -webkit-touch-callout:none;touch-action:manipulation;
+  }
+  .kb-num:active{background:var(--border);}
+  .kb-sym{
+    flex:1 1 auto;min-width:48px;background:var(--surface2);color:var(--text);
+    border:1.5px solid var(--border);border-radius:8px;padding:10px 8px;
+    font-size:14px;font-weight:700;cursor:pointer;text-align:center;font-family:var(--font);
+    user-select:none;-webkit-user-select:none;
+    -webkit-touch-callout:none;touch-action:manipulation;
+  }
+  .kb-sym:active,.kb-sym.selected{background:var(--accent2);color:#fff;border-color:var(--accent2);}
+  .kb-sym.freq{background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.3);color:var(--accent2);}
+  .kb-sym.freq.selected{background:var(--accent2);color:#fff;}
+  .sym-mgmt-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .sym-mgmt-name{flex:1;font-size:15px;font-weight:600;}
+  .sym-mgmt-name.off{color:var(--text2);}
+  .kb-toggle{position:relative;width:44px;height:24px;flex-shrink:0;}
+  .kb-toggle input{display:none;}
+  .kb-toggle-track{position:absolute;inset:0;background:var(--surface2);border:1px solid var(--border);border-radius:12px;cursor:pointer;transition:background .2s;}
+  .kb-toggle input:checked+.kb-toggle-track{background:var(--accent3);border-color:var(--accent3);}
+  .kb-toggle-thumb{position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:left .2s;pointer-events:none;}
+  .kb-toggle input:checked~.kb-toggle-thumb{left:23px;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">📡</div>
+  <div>
+    <div class="header-title">FiberSurvey</div>
+    <div class="header-sub">Khảo sát tuyến cáp quang</div>
+  </div>
+  <div class="header-right">
+    <div class="pill active" id="gpsStatusPill">● GPS</div>
+    <div class="pill" id="syncPill">☁ Đồng bộ</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('map')"><span class="tab-icon">🗺️</span>Bản đồ</div>
+  <div class="tab" onclick="switchTab('survey')"><span class="tab-icon">📋</span>Khảo sát</div>
+  <div class="tab" onclick="switchTab('points')"><span class="tab-icon">📍</span>Điểm đo</div>
+  <div class="tab" onclick="switchTab('report')"><span class="tab-icon">🗂️</span>Dự án</div>
+</div>
+
+<!-- MAP -->
+<div class="screen active" id="screen-map" style="position:relative;">
+  <div id="map" style="width:100%;height:100%"></div>
+  <div id="crosshairCenter" style="display:block;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:1000">
+    <div style="position:absolute;left:-24px;top:50%;width:20px;height:2px;background:#f78166;transform:translateY(-50%)"></div>
+    <div style="position:absolute;right:-24px;top:50%;width:20px;height:2px;background:#f78166;transform:translateY(-50%)"></div>
+    <div style="position:absolute;top:-24px;left:50%;width:2px;height:20px;background:#f78166;transform:translateX(-50%)"></div>
+    <div style="position:absolute;bottom:-24px;left:50%;width:2px;height:20px;background:#f78166;transform:translateX(-50%)"></div>
+    <div style="width:8px;height:8px;border-radius:50%;background:#f78166;box-shadow:0 0 0 3px rgba(247,129,102,.3)"></div>
+  </div>
+  <div id="markerBadge" style="position:absolute;top:50px;right:60px;background:rgba(22,27,34,.85);color:#58a6ff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;border:1px solid #30363d;z-index:999;pointer-events:none"></div>
+  <div class="map-status" id="mapStatus"><span class="dot yellow"></span>Đang lấy vị trí...</div>
+  <div class="map-toolbar-left">
+    <div class="map-btn-xl" onclick="togglePinMode()">📌<span>THÊM ĐIỂM</span></div>
+    <div id="crosshairCoords" style="margin-top:6px;background:rgba(13,17,23,.8);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:10px;font-family:monospace;color:var(--accent);backdrop-filter:blur(4px)">---, ---</div>
+  </div>
+  <div class="map-toolbar-right">
+    <div class="map-btn" onclick="deleteNearestPoint()" title="Xóa điểm gần nhất">🗑️</div>
+    <div class="map-btn" onclick="centerMap()">📍</div>
+    <div class="map-btn" onclick="toggleTrack()" id="trackBtn">⏺️</div>
+    <div class="map-btn" onclick="toggleMapLayer()" id="layerBtn" title="Đổi nguồn bản đồ">🛰️</div>
+    <div class="map-btn" onclick="toggleCompassMode()" id="compassBtn" title="Xoay bản đồ theo la bàn / xoay tay bằng 2 ngón">🧭</div>
+    <div class="map-btn" onclick="cacheCurrentView()" id="cacheBtn" title="Cache bản đồ offline">💾</div>
+  </div>
+  <div id="offlineBanner" style="display:none;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(231,107,66,0.92);color:#fff;font-size:12px;font-weight:700;padding:7px 18px;border-radius:20px;z-index:1000;white-space:nowrap;backdrop-filter:blur(6px)">
+    📵 Offline – dùng bản đồ đã cache
+  </div>
+</div>
+
+<!-- SURVEY -->
+<div class="screen" id="screen-survey">
+  <div class="scroll">
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-val" id="statSurveys">0</div><div class="stat-lbl">Khảo sát</div></div>
+      <div class="stat-box"><div class="stat-val" id="statPoints">0</div><div class="stat-lbl">Điểm đo</div></div>
+      <div class="stat-box"><div class="stat-val" id="statKm">0.00</div><div class="stat-lbl">km tuyến</div></div>
+    </div>
+    <div class="flex-row" style="margin-bottom:10px;">
+      <div style="font-size:14px;font-weight:700;flex:1">Danh sách khảo sát</div>
+      <button class="btn btn-primary btn-sm" onclick="newSurveyModal()">＋ Tạo mới</button>
+    </div>
+    <div id="surveyList"></div>
+  </div>
+</div>
+
+<!-- POINTS -->
+<div class="screen" id="screen-points">
+  <div class="scroll">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">📍</span>
+        <span class="card-title">Vị trí hiện tại</span>
+        <span class="card-meta" id="gpsAccuracy">±-- m</span>
+      </div>
+      <div class="coords-box">
+        <div class="coord-item"><span class="coord-label">VĨ ĐỘ</span><span class="coord-val" id="latVal">---.------</span></div>
+        <div class="coord-item"><span class="coord-label">KINH ĐỘ</span><span class="coord-val" id="lngVal">---.------</span></div>
+        <div class="coord-item"><span class="coord-label">ĐỘ CAO</span><span class="coord-val" id="altVal">-- m</span></div>
+      </div>
+      <button class="btn btn-success btn-full mt-8" onclick="addPointModal()">📍 Thêm điểm đo tại đây</button>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">🗂️</span>
+        <span class="card-title">Danh sách điểm đo</span>
+        <span class="card-meta" id="pointCount">0 điểm</span>
+      </div>
+      <div id="pointList"><div class="text-sm" style="padding:8px 0">Chưa có điểm nào.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- REPORT -->
+<div class="screen" id="screen-report">
+  <div class="scroll">
+    <button onclick="startNewRoute()" style="width:100%;padding:20px;border-radius:16px;border:none;background:linear-gradient(135deg,var(--accent2),#1158c7);color:#fff;font-size:18px;font-weight:800;cursor:pointer;margin-bottom:10px;box-shadow:0 6px 24px rgba(88,166,255,.35);display:flex;align-items:center;justify-content:center;gap:10px">
+      ▶️ Bắt đầu tuyến mới
+    </button>
+    <button onclick="finishSurvey()" style="width:100%;padding:20px;border-radius:16px;border:none;background:linear-gradient(135deg,var(--accent3),#2ea043);color:#fff;font-size:18px;font-weight:800;cursor:pointer;margin-bottom:10px;box-shadow:0 6px 24px rgba(63,185,80,.35);display:flex;align-items:center;justify-content:center;gap:10px">
+      🏁 Kết thúc & Gửi báo cáo
+    </button>
+    <!-- Nút xuất nhanh không qua modal -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+      <button onclick="exportKMLDirect()" style="padding:14px;border-radius:12px;border:none;background:var(--surface2);border:1px solid var(--border);color:var(--accent2);font-size:14px;font-weight:700;cursor:pointer;">
+        📤 Xuất KML
+      </button>
+      <button onclick="exportZipDirect()" style="padding:14px;border-radius:12px;border:none;background:var(--surface2);border:1px solid var(--border);color:var(--accent3);font-size:14px;font-weight:700;cursor:pointer;">
+        📦 Lưu ZIP
+      </button>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">📡</span>
+        <span class="card-title" id="currentRouteName">Chưa có tuyến nào</span>
+        <span class="card-meta" id="rptStatus" style="color:var(--text2)">--</span>
+      </div>
+      <div class="coords-box" style="flex-direction:column;gap:8px;">
+        <div class="flex-row"><span class="text-sm flex-1">📍 Điểm đo</span><span id="rptPoints" style="font-weight:800;font-size:15px">0</span></div>
+        <div class="flex-row"><span class="text-sm flex-1">📏 Chiều dài</span><span id="rptLength" style="font-weight:800;font-size:15px;color:var(--accent2)">0 m</span></div>
+        <div class="flex-row"><span class="text-sm flex-1">📸 Ảnh</span><span id="rptPhotos" style="font-weight:800;font-size:15px">0</span></div>
+        <div class="flex-row"><span class="text-sm flex-1">🕐 Bắt đầu</span><span id="rptStart" style="font-weight:600;font-size:12px">--</span></div>
+        <div class="flex-row"><span class="text-sm flex-1">🏁 Kết thúc</span><span id="rptEnd" style="font-weight:600;font-size:12px">--</span></div>
+      </div>
+      <div style="margin-top:10px">
+        <textarea id="surveyNotes" placeholder="Ghi chú tuyến..." rows="2" style="font-size:12px"></textarea>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-header">
+        <span class="card-icon">📸</span>
+        <span class="card-title">Ảnh thực địa</span>
+        <span class="card-meta" id="photoCount">0 ảnh</span>
+      </div>
+      <div class="photo-grid" id="reportPhotoGrid">
+        <div class="text-sm" style="grid-column:1/-1;padding:8px 0">Chưa có ảnh nào.</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:6px;margin-top:4px">Tuyến đã hoàn thành</div>
+    <div id="completedRouteList">
+      <div class="text-sm" style="padding:8px 0;color:var(--text2)">Chưa có tuyến nào hoàn thành.</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Tuyến mới -->
+<div class="modal-overlay" id="newRouteModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">▶️ Bắt đầu tuyến mới</div>
+    <label>Tên tuyến</label>
+    <input id="newRouteName" type="text" placeholder="VD: Tuyến Thanh Nội – QL32" style="font-size:16px;padding:12px">
+    <div style="height:12px"></div>
+    <div class="flex-row">
+      <button class="btn btn-ghost flex-1" onclick="closeModal('newRouteModal')">Hủy</button>
+      <button class="btn btn-primary" onclick="confirmNewRoute()" style="flex:3;font-size:16px;font-weight:800;padding:14px">▶️ Bắt đầu</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Hoàn thành -->
+<div class="modal-overlay" id="finishModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🏁 Kết thúc tuyến</div>
+    <div id="finishSummaryBox" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;line-height:2"></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn flex-1" onclick="shareKMLViaZalo()" style="background:#0068ff;color:#fff;font-size:16px;font-weight:700;padding:16px 8px;border-radius:12px;border:none;flex:2">
+        📤 Gửi KML qua Zalo
+      </button>
+      <button class="btn flex-1" onclick="shareViaSystem()" style="background:var(--surface2);color:var(--text);font-size:16px;font-weight:700;padding:16px 8px;border-radius:12px;border:1px solid var(--border);flex:1">
+        ↗️ Khác
+      </button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-ghost btn-sm flex-1" onclick="exportCSV()">📄 CSV</button>
+      <button class="btn btn-ghost btn-sm flex-1" onclick="exportKML()">🗺️ KML</button>
+      <button class="btn btn-ghost btn-sm flex-1" onclick="saveZipToPhone()">📦 ZIP về máy</button>
+    </div>
+    <button class="btn btn-ghost btn-full" onclick="closeModal('finishModal')">Đóng</button>
+  </div>
+</div>
+
+<!-- MODAL: Sửa điểm -->
+<div class="modal-overlay" id="editPointModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✏️ Sửa điểm đo</div>
+
+    <label>Tên điểm</label>
+    <input id="editPointName" type="text" style="font-size:18px;font-weight:700;padding:12px 14px;border-radius:12px;">
+
+    <label style="margin-top:12px;">Ảnh</label>
+    <input type="file" id="editPhotoInput" accept="image/*" capture="environment" style="display:none" onchange="handleEditPhoto(this)">
+    <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+      <img id="editPhotoPreview" src="" style="display:none;width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+      <button onclick="document.getElementById('editPhotoInput').click()"
+        style="height:44px;padding:0 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-size:14px;font-weight:600;color:var(--text);cursor:pointer;">
+        📷 Đổi ảnh
+      </button>
+      <button id="editPhotoDelBtn" onclick="clearEditPhoto()" style="display:none;height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--accent);font-size:13px;cursor:pointer;">
+        🗑 Xóa ảnh
+      </button>
+    </div>
+
+    <label style="margin-top:12px;">Tọa độ</label>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;font-family:monospace;display:flex;gap:12px;align-items:center;margin-bottom:4px;">
+      <span id="editCoordDisplay" style="flex:1;color:var(--accent3);font-weight:700;">---</span>
+      <button onclick="updateEditGPS()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--accent2);padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">📍 Cập nhật GPS</button>
+    </div>
+
+    <input id="editPointId" type="hidden">
+    <div style="height:14px;"></div>
+    <div class="flex-row">
+      <button class="btn btn-ghost flex-1" onclick="closeModal('editPointModal')">Hủy</button>
+      <button class="btn btn-primary" onclick="saveEditPoint()" style="flex:3;font-size:16px;font-weight:800;padding:14px;">✅ Lưu thay đổi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Thêm điểm – bàn phím tuỳ chỉnh -->
+<div class="modal-overlay" id="pointModal">
+  <div class="modal" style="padding:14px 14px 28px;">
+    <div class="modal-handle"></div>
+
+    <!-- Preview tên điểm + chụp ảnh + ABC cùng hàng -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-height:48px;display:flex;align-items:center;">
+        <span id="pointNameDisplay" style="font-size:22px;font-weight:800;color:var(--accent3);letter-spacing:.5px;">_<span id="kbCursor" style="display:inline-block;width:2px;height:22px;background:var(--accent3);margin-left:2px;vertical-align:middle;animation:pulse 1s infinite;"></span></span>
+        <input id="pointName" type="text" style="display:none;background:transparent;border:none;outline:none;color:var(--accent3);font-size:20px;font-weight:800;width:100%;font-family:var(--font);" placeholder="Nhập tự do...">
+      </div>
+      <input type="file" id="pointPhotoInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoUpload(this)">
+      <button onclick="document.getElementById('pointPhotoInput').click()"
+        style="height:48px;width:52px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;">
+        📷
+      </button>
+      <button id="kbEditBtn" onclick="kbToggleFree()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--accent2);padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">✏️ ABC</button>
+    </div>
+
+    <!-- Lưu điểm (đỏ) + Hủy (vàng) cùng hàng -->
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+      <button onclick="savePoint()"
+        style="flex:1;height:40px;border-radius:10px;border:none;background:var(--accent2);font-size:14px;font-weight:800;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;touch-action:manipulation;">
+        💾 Lưu điểm
+      </button>
+      <button onclick="closeModal('pointModal');kbClear();"
+        style="height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;touch-action:manipulation;">
+        ✕ Hủy
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text2);min-height:14px;margin-bottom:6px;">
+      <span id="photoStatus">Chưa có ảnh</span>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-family:monospace;">
+        <span id="modalLat">---.------</span>, <span id="modalLng">---.------</span> (<span id="modalAcc">--</span>)
+        <span id="modalGpsDot" class="dot yellow"></span><span id="modalGpsMsg">Đang lấy GPS...</span>
+      </span>
+    </div>
+
+    <!-- Số thứ tự -->
+    <div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;">Số thứ tự</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:7px;" id="kbNumpad">
+      <button class="kb-num" data-num="1">1</button>
+      <button class="kb-num" data-num="2">2</button>
+      <button class="kb-num" data-num="3">3</button>
+      <button class="kb-num" data-num="4">4</button>
+      <button class="kb-num" data-num="5">5</button>
+      <button class="kb-num" data-num="6">6</button>
+      <button class="kb-num" data-num="7">7</button>
+      <button class="kb-num" data-num="8">8</button>
+      <button class="kb-num" data-num="9">9</button>
+      <button class="kb-num" data-num="0" style="grid-column:span 2;">0</button>
+      <button class="kb-num kb-del-btn" id="kbDelBtn" style="background:rgba(247,129,102,.15);color:var(--accent);user-select:none;-webkit-user-select:none;">⌫</button>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:5px 0 7px;"></div>
+
+    <!-- Ký hiệu -->
+    <div style="display:flex;align-items:center;margin-bottom:6px;">
+      <span style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;flex:1;">Ký hiệu</span>
+      <button id="kbShowAllBtn" onclick="kbToggleShowAllSyms()" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent3);padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;margin-right:6px;">🔼 Hiện tất cả</button>
+      <button onclick="openSymModal()" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent2);padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;">⚙️ Cài đặt</button>
+    </div>
+    <div id="kbSymGrid" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+
+    <input id="pointType" type="hidden" value="waypoint">
+  </div>
+</div>
+
+<!-- MODAL: Quản lý ký hiệu -->
+<div class="modal-overlay" id="symMgmtModal">
+  <div class="modal" style="max-height:80dvh;overflow-y:auto;">
+    <div class="modal-handle"></div>
+    <div class="modal-title">⚙️ Quản lý ký hiệu</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <input id="newSymInput" type="text" placeholder="Thêm ký hiệu mới..." style="flex:1;font-size:14px;">
+      <button onclick="addNewKbSym()" style="background:var(--accent2);border:none;border-radius:8px;color:#fff;padding:8px 14px;font-size:14px;font-weight:700;cursor:pointer;">+ Thêm</button>
+    </div>
+    <div id="symMgmtList"></div>
+    <button class="btn btn-ghost btn-full" style="margin-top:12px;" onclick="closeModal('symMgmtModal');renderKbSymbols();">✓ Xong</button>
+  </div>
+</div>
+
+<!-- MODAL: Khảo sát mới -->
+<div class="modal-overlay" id="surveyModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📋 Tạo khảo sát mới</div>
+    <label>Tên dự án / tuyến cáp</label>
+    <input id="surveyName" type="text" placeholder="VD: Tuyến Hà Nội – Bắc Ninh QL1A">
+    <label>Kỹ thuật viên phụ trách</label>
+    <input id="techName" type="text" placeholder="Họ tên KTV">
+    <label>Loại tuyến</label>
+    <select id="routeType">
+      <option value="underground">Ngầm – Cáp ngầm dưới đất</option>
+      <option value="aerial">Trên không – Cáp treo</option>
+      <option value="mixed">Hỗn hợp</option>
+    </select>
+    <div style="height:12px"></div>
+    <div class="flex-row">
+      <button class="btn btn-ghost flex-1" onclick="closeModal('surveyModal')">Hủy</button>
+      <button class="btn btn-primary flex-1" onclick="createSurvey()">✅ Tạo khảo sát</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CHẶN DOUBLE-TAP ZOOM TOÀN BỘ MODAL ──────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Chặn double-tap zoom trong modal
+  const modal = document.getElementById('pointModal');
+  if (modal) {
+    let lastTap = 0;
+    modal.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 300) e.preventDefault();
+      lastTap = now;
+    }, { passive: false });
+  }
+
+  // Numpad – gắn 1 lần, dùng touchstart để nhanh nhất
+  const numpad = document.getElementById('kbNumpad');
+  if (numpad) {
+    numpad.addEventListener('touchstart', function(e) {
+      const btn = e.target.closest('[data-num]');
+      if (btn) {
+        e.preventDefault();
+        kbNum(btn.dataset.num);
+      }
+    }, { passive: false });
+
+    // Fallback desktop
+    numpad.addEventListener('click', function(e) {
+      const btn = e.target.closest('[data-num]');
+      if (btn) kbNum(btn.dataset.num);
+    });
+
+    // Nút xóa
+    const delBtn = document.getElementById('kbDelBtn');
+    if (delBtn) {
+      delBtn.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        kbDel();
+        kbDelStart();
+      }, { passive: false });
+      delBtn.addEventListener('touchend', function(e) {
+        e.preventDefault();
+        kbDelEnd(e);
+      }, { passive: false });
+      delBtn.addEventListener('click', kbDel);
+    }
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────
+
+let state = {
+  currentLat:null, currentLng:null, currentAlt:null, accuracy:null,
+  pinnedLat:null, pinnedLng:null,
+  currentRouteName:'Tuyến khảo sát',
+  isTracking:false, trackPoints:[], measurePoints:[], photos:[],
+  surveys:[], surveyNotes:'', currentPhotoData:null, startTime:null,
+};
+
+let map, mapMarkers=[], userMarkerL=null, trackLine=null;
+let currentLayer = null;
+let currentLayerType = 'satellite'; // 'satellite' hoặc 'osm'
+
+const MAPTILER_KEY = 'x0SYjiFpHKsFWKV9H5Og';
+
+function getSatelliteLayer() {
+  return L.tileLayer(
+    `https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`,
+    { maxZoom: 20, attribution: '© MapTiler', crossOrigin: true }
+  );
+}
+
+function getOSMLayer() {
+  return L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 19, attribution: '© OpenStreetMap' }
+  );
+}
+
+function toggleMapLayer() {
+  if (!map) return;
+  if (currentLayer) map.removeLayer(currentLayer);
+  if (currentLayerType === 'satellite') {
+    currentLayer = getOSMLayer().addTo(map);
+    currentLayerType = 'osm';
+    document.getElementById('layerBtn').textContent = '🗺️';
+    showToast('🗺️ Đã chuyển sang OSM');
+  } else {
+    currentLayer = getSatelliteLayer().addTo(map);
+    currentLayerType = 'satellite';
+    document.getElementById('layerBtn').textContent = '🛰️';
+    showToast('🛰️ Đã chuyển sang vệ tinh');
+  }
+}
+
+function initMap() {
+  map = L.map('map',{zoomControl:false,attributionControl:false}).setView([21.028,105.854],17);
+  currentLayer = getSatelliteLayer().addTo(map);
+  map.on('move',()=>{ const c=map.getCenter(); state.pinnedLat=c.lat; state.pinnedLng=c.lng; syncCrosshair(); });
+  trackLine = L.polyline([],{color:'#f78166',weight:3,dashArray:'8,4'}).addTo(map);
+  attachMapRotateGesture();
+}
+
+function syncCrosshair() {
+  if (!map) return;
+  const c = map.getCenter();
+  const txt = c.lat.toFixed(6)+', '+c.lng.toFixed(6);
+  const e = document.getElementById('crosshairCoords');
+  if (e) e.textContent = txt;
+}
+
+function addMapMarker(lat,lng,name,color,pointId) {
+  const icon = L.divIcon({
+    className:'point-label',
+    html:`<div class="map-counter-rotate" style="display:flex;flex-direction:column;align-items:center;gap:3px">
+      <div style="width:12px;height:12px;border-radius:50%;background:${color||'#e3b341'};border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.6)"></div>
+      <div style="background:rgba(0,0,0,.75);color:${color||'#e3b341'};font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;white-space:nowrap">${name}</div>
+    </div>`,
+    iconAnchor:[6,6],
+  });
+  const marker = L.marker([lat,lng],{icon}).addTo(map);
+  marker._pointId = pointId;
+  marker._pointName = name;
+
+  marker.on('click', function() {
+    const pid = marker._pointId;
+    const p = pid
+      ? state.measurePoints.find(p=>p.id===pid)
+      : state.measurePoints.find(p=>p.name===marker._pointName);
+    if (!p) { showToast('⚠️ Không tìm thấy điểm'); return; }
+
+    const popupHtml = `
+      <div style="font-family:-apple-system,sans-serif;min-width:160px;">
+        <div style="font-size:14px;font-weight:800;color:#e3b341;margin-bottom:6px;">${p.name}</div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:8px;font-family:monospace;">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</div>
+        ${p.photo?`<img src="${p.photo}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:8px;">` : ''}
+        <div style="display:flex;gap:6px;">
+          <button id="popupEdit_${p.id}" style="flex:1;padding:8px;border-radius:8px;border:none;background:#58a6ff;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✏️ Sửa</button>
+          <button id="popupDel_${p.id}" style="flex:1;padding:8px;border-radius:8px;border:none;background:#f78166;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">🗑 Xóa</button>
+        </div>
+      </div>`;
+
+    marker.unbindPopup();
+    const popup = L.popup({maxWidth:220, className:'custom-popup'}).setContent(popupHtml);
+    marker.bindPopup(popup);
+
+    // Gắn event TRƯỚC khi mở popup — vì openPopup() phát sự kiện 'popupopen'
+    // NGAY LẬP TỨC (đồng bộ), nếu gắn .once() sau khi gọi openPopup() thì sự kiện
+    // đã trôi qua mất rồi, nút Sửa/Xóa sẽ không có tác dụng gì cả (đây là lỗi gốc
+    // khiến bảng hiện ra nhưng bấm Sửa không làm gì).
+    marker.once('popupopen', function() {
+      const editBtn = document.getElementById('popupEdit_' + p.id);
+      const delBtn  = document.getElementById('popupDel_'  + p.id);
+      if (editBtn) editBtn.addEventListener('click', function() {
+        map.closePopup(); openEditPoint(p.id);
+      });
+      if (delBtn) delBtn.addEventListener('click', function() {
+        map.closePopup(); deletePoint(p.id);
+      });
+    });
+    marker.openPopup();
+  });
+  return marker;
+}
+
+function renderMapOverlay() {
+  const b = document.getElementById('markerBadge');
+  if (b) b.textContent = mapMarkers.length ? `${mapMarkers.length} điểm` : '';
+}
+
+function centerMap() {
+  if (state.currentLat) { map.flyTo([state.currentLat,state.currentLng],18); showToast('📍 Đã về vị trí GPS'); }
+  else showToast('⏳ Chưa có tín hiệu GPS');
+}
+
+function updateUserMarker() {
+  if (!state.currentLat||!map) return;
+  if (!userMarkerL) {
+    const icon = L.divIcon({className:'',html:'<div style="width:16px;height:16px;border-radius:50%;background:#3fb950;border:2.5px solid #fff;box-shadow:0 0 0 4px rgba(63,185,80,.3)"></div>',iconAnchor:[8,8]});
+    userMarkerL = L.marker([state.currentLat,state.currentLng],{icon}).addTo(map);
+  } else { userMarkerL.setLatLng([state.currentLat,state.currentLng]); }
+  renderMapOverlay();
+}
+
+// ── XOAY BẢN ĐỒ (la bàn tự động + xoay tay 2 ngón) ──────────────────────
+// Ghi chú kỹ thuật: xoay bằng CSS transform trên toàn bộ #map. Cách này hiển
+// thị đúng (tile, marker, nhãn đều xoay theo, nhãn được xoay ngược lại để giữ
+// thẳng đứng), nhưng việc KÉO bản đồ bằng 1 ngón tay sẽ đi sai hướng khi đang
+// xoay (giới hạn của Leaflet — nó không biết bản đồ đang bị xoay bằng CSS).
+// Vì vậy: tự động khoá việc kéo bản đồ khi đang xoay, và tự động đưa về hướng
+// Bắc trước khi ghim điểm (xem togglePinMode). Bấm/thả (pinch) để zoom và bấm
+// vào điểm để sửa vẫn hoạt động bình thường dù đang xoay.
+let mapRotationDeg = 0, compassOn = false, compassListener = null;
+
+function setMapRotation(deg){
+  deg = ((deg % 360) + 360) % 360;
+  mapRotationDeg = deg;
+  document.documentElement.style.setProperty('--map-rotation', deg);
+  if (map) {
+    if (deg === 0) { map.dragging.enable(); }
+    else { map.dragging.disable(); }
+  }
+}
+
+async function toggleCompassMode(){
+  const btn = document.getElementById('compassBtn');
+  if (compassOn) {
+    stopCompass();
+    setMapRotation(0);
+    if (btn) btn.classList.remove('recording');
+    showToast('🧭 Đã tắt la bàn — quay về hướng Bắc');
+    return;
+  }
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      const perm = await DeviceOrientationEvent.requestPermission();
+      if (perm !== 'granted') { showToast('⚠️ Cần cho phép truy cập cảm biến để dùng la bàn'); return; }
+    } catch(e) { showToast('⚠️ Thiết bị không hỗ trợ la bàn'); return; }
+  }
+  startCompass();
+  if (btn) btn.classList.add('recording');
+  showToast('🧭 Đã bật xoay bản đồ theo la bàn');
+}
+
+function startCompass(){
+  compassOn = true;
+  compassListener = function(e){
+    let heading = null;
+    if (typeof e.webkitCompassHeading === 'number') heading = e.webkitCompassHeading; // iOS Safari
+    else if (e.absolute && typeof e.alpha === 'number') heading = (360 - e.alpha) % 360; // Android
+    if (heading === null) return;
+    setMapRotation(-heading);
+  };
+  window.addEventListener('deviceorientationabsolute', compassListener);
+  window.addEventListener('deviceorientation', compassListener);
+}
+
+function stopCompass(){
+  compassOn = false;
+  if (compassListener) {
+    window.removeEventListener('deviceorientationabsolute', compassListener);
+    window.removeEventListener('deviceorientation', compassListener);
+    compassListener = null;
+  }
+}
+
+function getTouchAngle(touches){
+  const dx = touches[1].clientX - touches[0].clientX;
+  const dy = touches[1].clientY - touches[0].clientY;
+  return Math.atan2(dy,dx) * 180 / Math.PI;
+}
+
+let rotateGestureActive=false, rotateStartAngle=0, rotateStartRotation=0;
+function attachMapRotateGesture(){
+  const el = document.getElementById('map');
+  if (!el) return;
+  el.addEventListener('touchstart', function(e){
+    if (e.touches.length===2) {
+      rotateGestureActive = true;
+      if (compassOn) { stopCompass(); const btn=document.getElementById('compassBtn'); if (btn) btn.classList.remove('recording'); }
+      rotateStartAngle = getTouchAngle(e.touches);
+      rotateStartRotation = mapRotationDeg;
+    }
+  }, {passive:true});
+  el.addEventListener('touchmove', function(e){
+    if (rotateGestureActive && e.touches.length===2) {
+      const angle = getTouchAngle(e.touches);
+      setMapRotation(rotateStartRotation + (angle - rotateStartAngle));
+    }
+  }, {passive:true});
+  el.addEventListener('touchend', function(e){
+    if (e.touches.length<2) rotateGestureActive=false;
+  }, {passive:true});
+}
+
+function togglePinMode() {
+  // Đưa bản đồ về hướng Bắc trước khi ghim điểm — khi bản đồ đang xoay, việc
+  // kéo bản đồ để canh crosshair không còn đúng hướng ngón tay nữa (giới hạn kỹ
+  // thuật của tính năng xoay bản đồ), nên tự động reset để đảm bảo ghim điểm chính xác.
+  if (mapRotationDeg !== 0) {
+    stopCompass();
+    setMapRotation(0);
+    showToast('🧭 Đã đưa bản đồ về hướng Bắc để ghim điểm chính xác');
+  }
+  syncCrosshair(); addPointModal();
+}
+
+function startGPS() {
+  if (!navigator.geolocation) { setMapStatus('red','GPS không khả dụng'); return; }
+  navigator.geolocation.watchPosition(pos=>{
+    state.currentLat=pos.coords.latitude; state.currentLng=pos.coords.longitude;
+    state.currentAlt=pos.coords.altitude?Math.round(pos.coords.altitude):'--';
+    state.accuracy=Math.round(pos.coords.accuracy);
+    document.getElementById('latVal').textContent=state.currentLat.toFixed(6);
+    document.getElementById('lngVal').textContent=state.currentLng.toFixed(6);
+    document.getElementById('altVal').textContent=state.currentAlt+(state.currentAlt!=='--'?' m':'');
+    document.getElementById('gpsAccuracy').textContent=`±${state.accuracy} m`;
+    if (document.getElementById('pointModal').classList.contains('open')) updateModalCoords(state.currentLat,state.currentLng,state.accuracy);
+    setMapStatus('green',`GPS hoạt động • ±${state.accuracy}m`);
+    document.getElementById('gpsStatusPill').textContent='● GPS';
+    document.getElementById('gpsStatusPill').style.color='var(--accent3)';
+    updateUserMarker();
+    if (state.isTracking) { state.trackPoints.push([state.currentLat,state.currentLng]); if(trackLine) trackLine.setLatLngs(state.trackPoints); updateStats(); }
+  },err=>{
+    setMapStatus('red','Không có GPS – demo mode');
+    state.currentLat=21.0285+(Math.random()-.5)*.001; state.currentLng=105.8542+(Math.random()-.5)*.001;
+    state.currentAlt=10; state.accuracy=15;
+    document.getElementById('latVal').textContent=state.currentLat.toFixed(6);
+    document.getElementById('lngVal').textContent=state.currentLng.toFixed(6);
+    document.getElementById('altVal').textContent='10 m';
+    document.getElementById('gpsAccuracy').textContent='±15 m (demo)';
+    updateUserMarker();
+  },{enableHighAccuracy:true,maximumAge:3000,timeout:10000});
+}
+
+function setMapStatus(color,msg) {
+  document.getElementById('mapStatus').innerHTML=`<span class="dot ${color}"></span>${msg}`;
+}
+
+function toggleTrack() {
+  const btn=document.getElementById('trackBtn');
+  if (!state.isTracking) {
+    if (!state.currentLat){showToast('⏳ Chờ tín hiệu GPS');return;}
+    state.isTracking=true; state.startTime=new Date();
+    state.trackPoints=[[state.currentLat,state.currentLng]];
+    if(trackLine) trackLine.setLatLngs(state.trackPoints);
+    btn.textContent='⏹️'; btn.classList.add('recording');
+    setMapStatus('green','⏺ Đang ghi tuyến...'); showToast('⏺ Bắt đầu ghi tuyến');
+    document.getElementById('rptStart').textContent=state.startTime.toLocaleTimeString('vi-VN');
+  } else {
+    state.isTracking=false; btn.textContent='⏺️'; btn.classList.remove('recording');
+    setMapStatus('green',`✅ Đã ghi ${state.trackPoints.length} điểm`);
+    showToast(`✅ Đã lưu tuyến – ${state.trackPoints.length} điểm`); updateStats(); saveAppData();
+  }
+}
+
+function refreshModalGPS() {
+  setModalGpsStatus('yellow','Đang lấy GPS...');
+  if (state.currentLat!==null) { updateModalCoords(state.currentLat,state.currentLng,state.accuracy); return; }
+  if (!navigator.geolocation) { setModalGpsStatus('red','GPS không khả dụng'); return; }
+  navigator.geolocation.getCurrentPosition(pos=>{
+    state.currentLat=pos.coords.latitude; state.currentLng=pos.coords.longitude;
+    state.currentAlt=pos.coords.altitude?Math.round(pos.coords.altitude):'--';
+    state.accuracy=Math.round(pos.coords.accuracy);
+    updateModalCoords(state.currentLat,state.currentLng,state.accuracy);
+    updateUserMarker();
+  },err=>{
+    state.currentLat=21.0285+(Math.random()-.5)*.001; state.currentLng=105.8542+(Math.random()-.5)*.001;
+    state.currentAlt=10; state.accuracy=999;
+    updateModalCoords(state.currentLat,state.currentLng,state.accuracy,true);
+  },{enableHighAccuracy:true,timeout:8000,maximumAge:5000});
+}
+
+function updateModalCoords(lat,lng,acc,isDemo) {
+  const elLat=document.getElementById('modalLat');
+  const elLng=document.getElementById('modalLng');
+  const elAcc=document.getElementById('modalAcc');
+  if(elLat) elLat.textContent=lat.toFixed(6);
+  if(elLng) elLng.textContent=lng.toFixed(6);
+  if(elAcc){ elAcc.textContent=isDemo?'Demo':`±${acc}m`; elAcc.style.color=isDemo?'var(--accent)':(acc<20?'var(--accent3)':'var(--warn)'); }
+  if(isDemo) setModalGpsStatus('red','Không có GPS – demo');
+  else if(acc<20) setModalGpsStatus('green',`GPS tốt ±${acc}m`);
+  else setModalGpsStatus('yellow',`GPS yếu ±${acc}m`);
+}
+
+function setModalGpsStatus(color,msg) {
+  const dot=document.getElementById('modalGpsDot');
+  const msgEl=document.getElementById('modalGpsMsg');
+  if(dot) dot.className=`dot ${color}`;
+  if(msgEl) msgEl.textContent=msg;
+}
+
+function renderPoints() {
+  const list=document.getElementById('pointList');
+  document.getElementById('pointCount').textContent=`${state.measurePoints.length} điểm`;
+  if (!state.measurePoints.length){list.innerHTML='<div class="text-sm" style="padding:8px 0">Chưa có điểm nào.</div>';return;}
+  list.innerHTML=state.measurePoints.map((p,i)=>`
+    <div class="point-item">
+      <div class="point-badge" style="background:var(--warn)">${i+1}</div>
+      ${p.photo?`<img src="${p.photo}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0;">`:'' }
+      <div class="point-info">
+        <div class="point-name">${p.name}</div>
+        <div class="point-coord">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>
+      </div>
+      <div class="point-actions">
+        <button class="btn btn-ghost btn-sm" onclick="flyToPoint(${p.lat},${p.lng})">🗺️</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditPoint(${p.id})" style="color:var(--accent2);background:rgba(88,166,255,.15);border-color:rgba(88,166,255,.3);">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePoint(${p.id})">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function deletePoint(id) {
+  const pt=state.measurePoints.find(p=>p.id===id);
+  if (pt){const i=mapMarkers.findIndex(m=>m.name===pt.name);if(i>=0){if(mapMarkers[i]._lm)map.removeLayer(mapMarkers[i]._lm);mapMarkers.splice(i,1);}}
+  state.measurePoints=state.measurePoints.filter(p=>p.id!==id);
+  renderPoints();updateStats();renderMapOverlay();saveAppData();showToast('🗑️ Đã xóa điểm');
+}
+
+function deleteNearestPoint() {
+  if (!state.measurePoints.length) { showToast('⚠️ Chưa có điểm nào'); return; }
+  const centerLat = state.pinnedLat || map.getCenter().lat;
+  const centerLng = state.pinnedLng || map.getCenter().lng;
+
+  // Tìm điểm gần crosshair nhất
+  let nearest = null, minDist = Infinity;
+  state.measurePoints.forEach(p => {
+    const d = Math.pow(p.lat - centerLat, 2) + Math.pow(p.lng - centerLng, 2);
+    if (d < minDist) { minDist = d; nearest = p; }
+  });
+  if (!nearest) return;
+
+  if (!confirm(`Xóa điểm "${nearest.name}"?`)) return;
+
+  const i = mapMarkers.findIndex(m => m.id === nearest.id);
+  if (i >= 0) { if (mapMarkers[i]._lm) map.removeLayer(mapMarkers[i]._lm); mapMarkers.splice(i, 1); }
+  state.measurePoints = state.measurePoints.filter(p => p.id !== nearest.id);
+  renderPoints(); updateStats(); renderMapOverlay(); saveAppData();
+  showToast(`🗑️ Đã xóa: ${nearest.name}`);
+}
+
+function flyToPoint(lat,lng){switchTab('map');setTimeout(()=>map.flyTo([lat,lng],19),100);}
+
+// ── SỬA ĐIỂM ──────────────────────────────────────────────────────────────
+let editPhotoData = null;
+
+function openEditPoint(id) {
+  const p = state.measurePoints.find(p=>p.id===id);
+  if (!p) return;
+  document.getElementById('editPointId').value = id;
+  document.getElementById('editPointName').value = p.name;
+  document.getElementById('editCoordDisplay').textContent = `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`;
+  editPhotoData = p.photo || null;
+  const preview = document.getElementById('editPhotoPreview');
+  const delBtn = document.getElementById('editPhotoDelBtn');
+  if (p.photo) {
+    preview.src = p.photo; preview.style.display = 'block'; delBtn.style.display = 'block';
+  } else {
+    preview.style.display = 'none'; delBtn.style.display = 'none';
+  }
+  openModal('editPointModal');
+}
+
+function handleEditPhoto(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    editPhotoData = e.target.result;
+    const preview = document.getElementById('editPhotoPreview');
+    preview.src = editPhotoData; preview.style.display = 'block';
+    document.getElementById('editPhotoDelBtn').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearEditPhoto() {
+  editPhotoData = null;
+  document.getElementById('editPhotoPreview').style.display = 'none';
+  document.getElementById('editPhotoDelBtn').style.display = 'none';
+}
+
+function updateEditGPS() {
+  if (!state.currentLat) { showToast('⏳ Chưa có GPS'); return; }
+  document.getElementById('editCoordDisplay').textContent =
+    `${state.currentLat.toFixed(6)}, ${state.currentLng.toFixed(6)}`;
+  document.getElementById('editCoordDisplay').dataset.lat = state.currentLat;
+  document.getElementById('editCoordDisplay').dataset.lng = state.currentLng;
+  showToast('📍 Đã cập nhật tọa độ GPS');
+}
+
+function saveEditPoint() {
+  const id = parseInt(document.getElementById('editPointId').value);
+  const name = document.getElementById('editPointName').value.trim();
+  if (!name) { showToast('⚠️ Nhập tên điểm!'); return; }
+
+  const p = state.measurePoints.find(p=>p.id===id);
+  if (!p) return;
+
+  const coordEl = document.getElementById('editCoordDisplay');
+  const oldName = p.name;
+  p.name = name;
+  p.photo = editPhotoData;
+  if (coordEl.dataset.lat) {
+    p.lat = parseFloat(coordEl.dataset.lat);
+    p.lng = parseFloat(coordEl.dataset.lng);
+    delete coordEl.dataset.lat; delete coordEl.dataset.lng;
+  }
+
+  // Cập nhật marker trên bản đồ – tìm theo id
+  const mi = mapMarkers.findIndex(m=>m.id===id);
+  if (mi>=0) {
+    if (mapMarkers[mi]._lm) map.removeLayer(mapMarkers[mi]._lm);
+    const lm = addMapMarker(p.lat, p.lng, name, '#e3b341', id);
+    mapMarkers[mi] = {lat:p.lat, lng:p.lng, name, id, _lm:lm};
+  }
+
+  closeModal('editPointModal');
+  renderPoints(); renderMapOverlay(); saveAppData();
+  showToast(`✅ Đã sửa: ${name}`);
+}
+// ── END SỬA ĐIỂM ──────────────────────────────────────────────────────────
+
+function handlePhotoUpload(input) {
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{state.currentPhotoData=e.target.result;document.getElementById('photoStatus').textContent='✅ 1 ảnh đã chọn';};
+  reader.readAsDataURL(file);
+}
+
+function renderSurveys() {
+  const list=document.getElementById('surveyList');
+  if (!state.surveys.length){
+    list.innerHTML=`<div class="survey-empty"><div class="survey-empty-icon">📋</div><div class="survey-empty-text">Chưa có khảo sát nào</div><div class="survey-empty-sub">Nhấn <b>＋ Tạo mới</b> để bắt đầu</div></div>`;
+    return;
+  }
+  const bc={done:'badge-done',progress:'badge-progress',draft:'badge-draft'};
+  const bt={done:'Hoàn thành',progress:'Đang thực hiện',draft:'Dự thảo'};
+  const bd={done:'🟢',progress:'🔵',draft:'⚪'};
+  const ti={underground:'🚇',aerial:'🏗️',mixed:'🔀'};
+  list.innerHTML=state.surveys.map(s=>{
+    // Phòng dữ liệu cũ bị lỗi định dạng (points từng bị lưu nhầm thành mảng, km bị thiếu)
+    const pointCount = Array.isArray(s.points) ? s.points.length : (Number(s.points)||0);
+    const kmVal = (s.km===undefined || s.km===null || isNaN(Number(s.km))) ? '0.00' : s.km;
+    return `
+    <div class="survey-item" style="position:relative;">
+      <div class="survey-stripe ${s.status}"></div>
+      <div class="survey-icon">${ti[s.type]||'📡'}</div>
+      <div class="survey-info">
+        <div class="survey-name">${s.name}</div>
+        <div class="survey-detail">👷 ${s.tech} &nbsp;•&nbsp; 📅 ${s.date}</div>
+        <div class="survey-meta-row"><span class="survey-chip">📍 ${pointCount} điểm</span><span class="survey-chip">📏 ${kmVal} km</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+        <div class="survey-badge ${bc[s.status]}">${bd[s.status]} ${bt[s.status]}</div>
+        <button onclick="confirmDeleteSurvey(${s.id})" style="background:rgba(247,129,102,.15);border:1px solid rgba(247,129,102,.3);color:var(--accent);border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer">🗑️ Xóa</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function newSurveyModal(){openModal('surveyModal');}
+function createSurvey(){
+  const name=document.getElementById('surveyName').value.trim();
+  if(!name){showToast('⚠️ Nhập tên tuyến');return;}
+  state.surveys.unshift({id:Date.now(),name,tech:document.getElementById('techName').value.trim()||'KTV',type:document.getElementById('routeType').value,date:new Date().toLocaleDateString('vi-VN'),status:'progress',points:0,km:0});
+  closeModal('surveyModal');renderSurveys();updateStats();saveAppData();showToast(`✅ Đã tạo: ${name}`);
+}
+
+function confirmDeleteSurvey(id){
+  const s = state.surveys.find(s=>s.id===id);
+  if(!s) return;
+  if(confirm(`Xóa tuyến "${s.name}"?\nDữ liệu sẽ bị xóa vĩnh viễn.`)){
+    deleteSurvey(id);
+  }
+}
+
+function deleteSurvey(id){
+  state.surveys = state.surveys.filter(s=>s.id!==id);
+  // Xóa dữ liệu tuyến khỏi IndexedDB
+  if(tileDb){
+    const tx = tileDb.transaction(TILE_STORE,'readwrite');
+    tx.objectStore(TILE_STORE).delete('survey_'+id);
+  }
+  saveAppData();
+  renderSurveys();
+  updateStats();
+  showToast('🗑️ Đã xóa tuyến');
+}
+
+function calcDistance(){
+  let t=0;const pts=state.measurePoints;
+  for(let i=1;i<pts.length;i++){
+    const R=6371000,dLa=(pts[i].lat-pts[i-1].lat)*Math.PI/180,dLo=(pts[i].lng-pts[i-1].lng)*Math.PI/180;
+    const a=Math.sin(dLa/2)**2+Math.cos(pts[i-1].lat*Math.PI/180)*Math.cos(pts[i].lat*Math.PI/180)*Math.sin(dLo/2)**2;
+    t+=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }return Math.round(t);
+}
+
+function updateStats(){
+  const d=calcDistance();
+  document.getElementById('statSurveys').textContent=state.surveys.length;
+  document.getElementById('statPoints').textContent=state.measurePoints.length;
+  document.getElementById('statKm').textContent=(d/1000).toFixed(2);
+  document.getElementById('rptPoints').textContent=state.measurePoints.length;
+  document.getElementById('rptLength').textContent=d+' m';
+  document.getElementById('rptPhotos').textContent=state.photos.length;
+  document.getElementById('photoCount').textContent=`${state.photos.length} ảnh`;
+  renderReportPhotos();
+}
+
+function renderReportPhotos(){
+  const g=document.getElementById('reportPhotoGrid');
+  if(!state.photos.length){g.innerHTML='<div class="text-sm" style="grid-column:1/-1;padding:8px 0">Chưa có ảnh nào.</div>';return;}
+  g.innerHTML=state.photos.map((ph,i)=>`<div class="photo-thumb"><img src="${ph.data}" alt="${ph.point}"><div class="photo-del" onclick="deletePhoto(${i})">✕</div></div>`).join('');
+}
+function deletePhoto(i){state.photos.splice(i,1);updateStats();saveAppData();}
+
+function buildKML(){
+  const pl=state.measurePoints.map(p=>`
+  <Placemark><name>${p.name}</name><Point><coordinates>${p.lng},${p.lat},${p.alt||0}</coordinates></Point></Placemark>`).join('');
+  const tr=state.trackPoints.map(p=>`${p[1]},${p[0]},0`).join(' ');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${state.currentRouteName||'Khảo sát cáp quang'}</name>${pl}${tr?`<Placemark><name>Tuyến cáp</name><LineString><coordinates>${tr}</coordinates></LineString></Placemark>`:''}</Document></kml>`;
+}
+
+function exportCSV(){
+  if(!state.measurePoints.length){showToast('⚠️ Chưa có điểm nào');return;}
+  let csv='STT,Tên,Vĩ độ,Kinh độ,Độ cao,Chính xác,Thời gian\n';
+  state.measurePoints.forEach((p,i)=>{csv+=`${i+1},"${p.name}",${p.lat},${p.lng},${p.alt},${p.accuracy},"${p.time}"\n`;});
+  downloadFile('khao-sat.csv','text/csv',csv);
+}
+function exportJSON(){downloadFile('khao-sat.json','application/json',JSON.stringify({points:state.measurePoints,track:state.trackPoints,exported:new Date().toISOString()},null,2));}
+function exportKML(){if(!state.measurePoints.length){showToast('⚠️ Chưa có điểm nào');return;}downloadFile('tuyen-cap.kml','application/vnd.google-earth.kml+xml',buildKML());}
+
+// Trên iOS khi app chạy ở chế độ standalone (đã "Thêm vào MH chính") hoặc trong
+// webview, thẻ <a download> KHÔNG hoạt động — bấm nút không có gì xảy ra, không có
+// hộp thoại lưu file nào cả. Vì vậy ưu tiên dùng Web Share API (mở bảng chia sẻ hệ
+// thống, có tùy chọn "Lưu vào Files") trước, chỉ dùng <a download> làm phương án dự
+// phòng cho trình duyệt desktop / Android Chrome (nơi nó hoạt động bình thường,
+// lưu vào thư mục Downloads mặc định của trình duyệt).
+async function downloadFile(name,type,content){
+  try{
+    const file = new File([content], name, {type});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file]});
+      showToast(`📤 Đã gửi ${name}`);
+      return;
+    }
+  }catch(e){ /* người dùng hủy chia sẻ hoặc thiết bị không hỗ trợ -> rơi xuống tải thường */ }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  showToast(`📥 Đã xuất ${name} (kiểm tra thư mục Downloads/Tải xuống)`);
+}
+
+async function shareKMLViaZalo(){
+  if(!state.measurePoints.length){showToast('⚠️ Chưa có điểm nào');return;}
+  try {
+    const kml = buildKML();
+    const routeName = (state.currentRouteName||'cap-quang').replace(/\s+/g,'-');
+    const kmlName = `tuyen-${routeName}.kml`;
+    const file = new File([kml], kmlName, {type:'application/vnd.google-earth.kml+xml'});
+
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({title:'Khảo sát cáp quang – '+state.currentRouteName, files:[file]})
+        .catch(()=>downloadFile(kmlName,'application/vnd.google-earth.kml+xml',kml));
+    } else {
+      downloadFile(kmlName,'application/vnd.google-earth.kml+xml',kml);
+      showToast('📥 Đã tải KML – gửi thủ công qua Zalo');
+    }
+  } catch(e){
+    showToast('❌ Lỗi gửi KML: '+e.message);
+  }
+}
+
+async function saveZipToPhone(){
+  if(!state.measurePoints.length){showToast('⚠️ Chưa có điểm nào');return;}
+  showToast('📦 Đang tạo file ZIP...');
+  try {
+    const zip = new JSZip();
+    const routeName = (state.currentRouteName||'cap-quang').replace(/\s+/g,'-');
+
+    zip.file('tuyen.kml', buildKML());
+
+    if(state.photos.length){
+      const imgFolder = zip.folder('anh');
+      state.photos.forEach((ph,i)=>{
+        const base64 = ph.data.split(',')[1];
+        const ext = ph.data.startsWith('data:image/png')?'png':'jpg';
+        const fname = `anh_${String(i+1).padStart(2,'0')}_${(ph.point||'diem').replace(/\s+/g,'_')}.${ext}`;
+        imgFolder.file(fname, base64, {base64:true});
+      });
+    }
+
+    let csv='STT,Tên,Vĩ độ,Kinh độ,Độ cao,Chính xác,Thời gian\n';
+    state.measurePoints.forEach((p,i)=>{csv+=`${i+1},"${p.name}",${p.lat},${p.lng},${p.alt},${p.accuracy},"${p.time}"\n`;});
+    zip.file('diem-do.csv', csv);
+
+    const blob = await zip.generateAsync({type:'blob'});
+    const zipName = `khao-sat-${routeName}.zip`;
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=zipName; a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('✅ Đã lưu ZIP về máy');
+  } catch(e){
+    showToast('❌ Lỗi tạo ZIP: '+e.message);
+  }
+}
+
+function shareViaSystem(){
+  if(navigator.share){navigator.share({title:'Báo cáo khảo sát',text:buildShareText()}).catch(()=>{});}
+  else{navigator.clipboard?.writeText(buildShareText());showToast('📋 Đã copy vào clipboard');}
+}
+function buildShareText(){
+  const d=calcDistance();
+  return ['BÁO CÁO KHẢO SÁT CÁP QUANG','Ngày: '+new Date().toLocaleDateString('vi-VN'),'Điểm: '+state.measurePoints.length+' | Dài: '+d+'m','','DANH SÁCH ĐIỂM:',...state.measurePoints.map((p,i)=>`${i+1}. ${p.name} — ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`)].join('\n');
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['map','survey','points','report'][i]===tab));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id==='screen-'+tab));
+  if(tab==='map')setTimeout(()=>{if(map)map.invalidateSize();},50);
+}
+
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){
+  const el=document.getElementById(id);
+  el.classList.remove('open');
+  // Đóng bàn phím iOS nếu còn input nào trong modal đang giữ focus
+  if(document.activeElement && el.contains(document.activeElement)) document.activeElement.blur();
+}
+document.querySelectorAll('.modal-overlay').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');}));
+
+let toastTimer;
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2500);}
+
+function startNewRoute(){openModal('newRouteModal');}
+function confirmNewRoute(){
+  const nameInput=document.getElementById('newRouteName');
+  const name=nameInput.value.trim();
+  if(!name){showToast('⚠️ Nhập tên tuyến');return;}
+  nameInput.blur(); // đóng bàn phím iOS trước khi chuyển màn hình, tránh bàn phím bị "kẹt" hiện lại
+  state.measurePoints=[];state.trackPoints=[];state.photos=[];state.startTime=new Date();state.currentRouteName=name;
+  mapMarkers.forEach(m=>{if(m._lm)map.removeLayer(m._lm);});mapMarkers=[];
+  if(trackLine)trackLine.setLatLngs([]);
+  renderMapOverlay();
+  document.getElementById('currentRouteName').textContent=name;
+  document.getElementById('rptStatus').textContent='🔄 Đang khảo sát';
+  document.getElementById('rptStatus').style.color='var(--accent2)';
+  document.getElementById('rptStart').textContent=state.startTime.toLocaleString('vi-VN');
+  document.getElementById('rptEnd').textContent='--';
+  document.getElementById('surveyNotes').value='';
+  updateStats();closeModal('newRouteModal');switchTab('map');saveAppData();showToast(`▶️ Bắt đầu: ${name}`);
+}
+
+async function finishSurvey(){
+  if(!state.measurePoints.length){showToast('⚠️ Chưa có điểm nào');return;}
+
+  const now = Date.now();
+  if(state._lastFinish && now - state._lastFinish < 3000) return;
+  state._lastFinish = now;
+
+  const end = new Date();
+  const dist = calcDistance();
+  const name = state.currentRouteName || 'Tuyến khảo sát';
+  const photoCount = state.measurePoints.filter(p=>p.photo).length;
+
+  // Cập nhật UI
+  const rptEnd=document.getElementById('rptEnd'); if(rptEnd) rptEnd.textContent=end.toLocaleString('vi-VN');
+  const rptStatus=document.getElementById('rptStatus'); if(rptStatus){rptStatus.textContent='✅ Hoàn thành';rptStatus.style.color='var(--accent3)';}
+
+  // Lưu vào danh sách (cùng định dạng với createSurvey() để renderSurveys() hiển thị đúng)
+  if(!state.surveys) state.surveys=[];
+  state.surveys.push({
+    id: now, name, tech: 'KTV', type: 'mixed',
+    date: end.toLocaleDateString('vi-VN'), status: 'done',
+    points: state.measurePoints.length, km: (dist/1000).toFixed(2)
+  });
+  saveAppData();
+
+  // Hiện popup tổng kết + các lựa chọn gửi báo cáo (Zalo, KML, CSV, JSON...)
+  const box = document.getElementById('finishSummaryBox');
+  if(box){
+    box.innerHTML = `
+      <div>📡 <b>${name}</b></div>
+      <div>📍 Điểm đo: <b>${state.measurePoints.length}</b></div>
+      <div>📏 Chiều dài: <b>${dist} m</b></div>
+      <div>📸 Ảnh: <b>${photoCount}</b></div>
+      <div>🕐 Kết thúc: <b>${end.toLocaleString('vi-VN')}</b></div>`;
+  }
+  openModal('finishModal');
+}
+
+// ── XUẤT NHANH KHÔNG QUA MODAL ───────────────────────────────────────────
+async function exportKMLDirect() {
+  if (!state.measurePoints.length) { showToast('⚠️ Chưa có điểm nào'); return; }
+  const name = state.currentRouteName || 'TuyenKhaoSat';
+  const placemarks = state.measurePoints.map(p => `
+  <Placemark>
+    <name>${p.name}</name>
+    <description>${p.time||''}</description>
+    <Point><coordinates>${p.lng},${p.lat},0</coordinates></Point>
+  </Placemark>`).join('');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>${name}</name>
+  ${placemarks}
+</Document>
+</kml>`;
+  const fname = name.replace(/\s+/g,'_') + '_' + new Date().toLocaleDateString('vi-VN').replace(/\//g,'-') + '.kml';
+  await downloadFile(fname, 'application/vnd.google-earth.kml+xml', kml);
+}
+
+async function exportZipDirect() {
+  if (!state.measurePoints.length) { showToast('⚠️ Chưa có điểm nào'); return; }
+  const name = state.currentRouteName || 'TuyenKhaoSat';
+  const baseName = name.replace(/\s+/g,'_') + '_' + new Date().toLocaleDateString('vi-VN').replace(/\//g,'-');
+
+  showToast('📦 Đang tạo file ZIP...');
+  try {
+    const zip = new JSZip();
+
+    // 1. KML
+    const placemarks = state.measurePoints.map(p => `
+  <Placemark>
+    <name>${p.name}</name>
+    <description>${p.time||''}</description>
+    <Point><coordinates>${p.lng},${p.lat},0</coordinates></Point>
+  </Placemark>`).join('');
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>${name}</name>
+  ${placemarks}
+</Document>
+</kml>`;
+    zip.file(baseName + '.kml', kml);
+
+    // 2. Excel (fallback sang CSV nếu thư viện chưa tải được, ví dụ mất mạng)
+    if (typeof XLSX !== 'undefined') {
+      const rows = state.measurePoints.map((p,i) => ({
+        'STT': i+1, 'Tên điểm': p.name, 'Vĩ độ': p.lat, 'Kinh độ': p.lng,
+        'Độ cao (m)': p.alt, 'Sai số (m)': p.accuracy, 'Thời gian': p.time,
+        'Có ảnh': p.photo ? 'Có' : 'Không'
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{wch:5},{wch:18},{wch:12},{wch:12},{wch:10},{wch:10},{wch:18},{wch:8}];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Diem do');
+      zip.file(baseName + '.xlsx', XLSX.write(wb, {bookType:'xlsx', type:'array'}));
+    } else {
+      let csv = 'STT,Tên,Vĩ độ,Kinh độ,Độ cao,Sai số,Thời gian\n';
+      state.measurePoints.forEach((p,i)=>{csv+=`${i+1},"${p.name}",${p.lat},${p.lng},${p.alt},${p.accuracy},"${p.time}"\n`;});
+      zip.file(baseName + '.csv', csv);
+    }
+
+    // 3. Ảnh
+    const photos = state.measurePoints.filter(p => p.photo);
+    if (photos.length) {
+      const folder = zip.folder('anh');
+      photos.forEach((p,i) => {
+        const b64 = p.photo.split(',')[1];
+        const ext = p.photo.includes('png') ? 'png' : 'jpg';
+        folder.file(`${String(i+1).padStart(3,'0')}_${p.name}.${ext}`, b64, {base64:true});
+      });
+    }
+
+    const blob = await zip.generateAsync({type:'blob'});
+    const zipName = baseName + '.zip';
+    try{
+      const file = new File([blob], zipName, {type:'application/zip'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file]});
+        showToast(`📤 Đã gửi ZIP: ${state.measurePoints.length} điểm, ${photos.length} ảnh`);
+        return;
+      }
+    }catch(e){ /* rơi xuống tải thường */ }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = zipName;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`✅ Đã lưu ZIP: ${state.measurePoints.length} điểm, ${photos.length} ảnh`);
+  } catch(e) {
+    showToast('❌ Lỗi tạo ZIP: ' + e.message);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────
+
+function deleteSurveyItem(sid, btn) {
+  if(!confirm('Xóa tuyến này?')) return;
+  if(state.surveys) state.surveys = state.surveys.filter(s=>s.id!==sid);
+  const item = btn.closest('.survey-item');
+  if(item) item.remove();
+  saveAppData();
+  showToast('🗑️ Đã xóa tuyến');
+}
+
+
+// ── OFFLINE TILE CACHE (IndexedDB) ──────────────────────────────────────
+const TILE_DB = 'fibersurvey-tiles';
+const TILE_STORE = 'tiles';
+const DATA_STORE = 'appdata';
+let tileDb = null;
+
+function openTileDB(){
+  return new Promise((res)=>{
+    try{
+      const req = indexedDB.open(TILE_DB, 2);
+      req.onupgradeneeded = e => {
+        const db = e.target.result;
+        if(!db.objectStoreNames.contains(TILE_STORE)) db.createObjectStore(TILE_STORE);
+        if(!db.objectStoreNames.contains(DATA_STORE)) db.createObjectStore(DATA_STORE);
+      };
+      req.onsuccess = e => { tileDb = e.target.result; res(tileDb); };
+      // Không reject nữa: nếu IndexedDB lỗi/bị chặn (private mode, iOS storage...),
+      // trả về null thay vì làm treo toàn bộ chuỗi khởi tạo (map/GPS sẽ không chạy được
+      // -> không lưu điểm được -> đây chính là lỗi bạn gặp).
+      req.onerror = () => { console.warn('IndexedDB error:', req.error); res(null); };
+      req.onblocked = () => { console.warn('IndexedDB blocked'); res(null); };
+    }catch(e){ console.warn('IndexedDB exception:', e); res(null); }
+  });
+}
+
+function saveAppData(){
+  if(!tileDb) return;
+  const data = {
+    surveys: state.surveys,
+    measurePoints: state.measurePoints,
+    trackPoints: state.trackPoints,
+    photos: state.photos,
+    currentRouteName: state.currentRouteName,
+    startTime: state.startTime ? state.startTime.toISOString() : null,
+    surveyNotes: state.surveyNotes,
+    savedAt: new Date().toISOString()
+  };
+  const tx = tileDb.transaction(DATA_STORE,'readwrite');
+  tx.objectStore(DATA_STORE).put(JSON.stringify(data), 'state');
+}
+
+async function loadAppData(){
+  if(!tileDb) return;
+  return new Promise((res)=>{
+    const tx = tileDb.transaction(DATA_STORE,'readonly');
+    const req = tx.objectStore(DATA_STORE).get('state');
+    req.onsuccess = () => {
+      if(!req.result){ res(false); return; }
+      try {
+        const data = JSON.parse(req.result);
+        state.surveys = data.surveys || [];
+        state.measurePoints = data.measurePoints || [];
+        state.trackPoints = data.trackPoints || [];
+        state.photos = data.photos || [];
+        state.currentRouteName = data.currentRouteName || 'Tuyến khảo sát';
+        state.startTime = data.startTime ? new Date(data.startTime) : null;
+        state.surveyNotes = data.surveyNotes || '';
+        res(true);
+      } catch(e){ res(false); }
+    };
+    req.onerror = () => res(false);
+  });
+}
+
+function saveTile(key, blob){
+  if(!tileDb) return;
+  const tx = tileDb.transaction(TILE_STORE,'readwrite');
+  tx.objectStore(TILE_STORE).put({ blob, ts: Date.now() }, key);
+}
+
+function getTile(key){
+  return new Promise((res)=>{
+    if(!tileDb){res(null);return;}
+    const tx = tileDb.transaction(TILE_STORE,'readonly');
+    const req = tx.objectStore(TILE_STORE).get(key);
+    req.onsuccess = () => {
+      const r = req.result;
+      res(r ? (r.blob || r) : null);
+    };
+    req.onerror = () => res(null);
+  });
+}
+
+function ensureTileQuota(max) {
+  return new Promise((res) => {
+    if (!tileDb) { res(); return; }
+    const tx = tileDb.transaction(TILE_STORE, 'readwrite');
+    const store = tx.objectStore(TILE_STORE);
+    const countReq = store.count();
+    countReq.onsuccess = () => {
+      if (countReq.result < max) { res(); return; }
+      const allReq = store.getAll();
+      const keyReq = store.getAllKeys();
+      let allVals, allKeys;
+      allReq.onsuccess = () => { allVals = allReq.result; tryDel(); };
+      keyReq.onsuccess = () => { allKeys = keyReq.result; tryDel(); };
+      function tryDel() {
+        if (!allVals || !allKeys) return;
+        let minTs = Infinity, minKey = null;
+        allKeys.forEach((k, i) => {
+          const ts = allVals[i] && allVals[i].ts ? allVals[i].ts : 0;
+          if (ts < minTs) { minTs = ts; minKey = k; }
+        });
+        if (minKey) {
+          const tx2 = tileDb.transaction(TILE_STORE, 'readwrite');
+          tx2.objectStore(TILE_STORE).delete(minKey);
+          tx2.oncomplete = () => res();
+          tx2.onerror = () => res();
+        } else res();
+      }
+    };
+  });
+}
+
+function initOfflineTileLayer(){
+  const OfflineTileLayer = L.TileLayer.extend({
+    createTile(coords, done){
+      const tile = document.createElement('img');
+      tile.crossOrigin = '';
+      const key = `${coords.z}/${coords.x}/${coords.y}`;
+      const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${coords.z}/${coords.y}/${coords.x}`;
+      getTile(key).then(cached => {
+        if(!navigator.onLine && cached){
+          tile.src = URL.createObjectURL(cached); done(null, tile); return;
+        }
+        fetch(url)
+          .then(r => r.blob())
+          .then(blob => { saveTile(key, blob); tile.src = URL.createObjectURL(blob); done(null, tile); })
+          .catch(() => {
+            if(cached){ tile.src = URL.createObjectURL(cached); done(null,tile); }
+            else done('no tile', tile);
+          });
+      });
+      return tile;
+    }
+  });
+  return new OfflineTileLayer('', {maxZoom:20, maxNativeZoom:19});
+}
+
+function latLngToTile(lat, lng, z){
+  const n = Math.pow(2, z);
+  const x = Math.floor((lng + 180) / 360 * n);
+  const y = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n);
+  return [x, y];
+}
+
+async function cacheCurrentView(){
+  if(!map){ showToast('⚠️ Bản đồ chưa sẵn sàng'); return; }
+  if(!navigator.onLine){ showToast('📵 Đang offline, không thể cache'); return; }
+
+  const btn = document.getElementById('cacheBtn');
+  btn.textContent = '⏳'; btn.style.background = 'var(--warn)';
+
+  const bounds = map.getBounds();
+  const currentZ = Math.round(map.getZoom());
+  const zooms = [currentZ, currentZ+1, currentZ+2].filter(z => z <= 19);
+
+  let total = 0;
+  for(const z of zooms){
+    const [x0,y0] = latLngToTile(bounds.getNorth(), bounds.getWest(), z);
+    const [x1,y1] = latLngToTile(bounds.getSouth(), bounds.getEast(), z);
+    total += (Math.abs(x1-x0)+1) * (Math.abs(y1-y0)+1);
+  }
+
+  showToast(`💾 Đang lưu ${total} tile bản đồ...`);
+  let done = 0, errors = 0;
+
+  for(const z of zooms){
+    const [x0,y0] = latLngToTile(bounds.getNorth(), bounds.getWest(), z);
+    const [x1,y1] = latLngToTile(bounds.getSouth(), bounds.getEast(), z);
+    const xMin=Math.min(x0,x1), xMax=Math.max(x0,x1);
+    const yMin=Math.min(y0,y1), yMax=Math.max(y0,y1);
+    for(let x=xMin; x<=xMax; x++){
+      for(let y=yMin; y<=yMax; y++){
+        const key = `${currentLayerType}_${z}/${x}/${y}`;
+        const url = currentLayerType === 'osm'
+          ? `https://tile.openstreetmap.org/${z}/${x}/${y}.png`
+          : `https://api.maptiler.com/tiles/satellite/${z}/${x}/${y}.jpg?key=${MAPTILER_KEY}`;
+        try {
+          // Kiểm tra số tile hiện tại, nếu >= 400 thì xóa tile cũ nhất trước
+          await ensureTileQuota(400);
+          const r = await fetch(url);
+          if(r.ok) saveTile(key, await r.blob());
+          done++;
+        } catch(e){ errors++; done++; }
+        if(done % 30 === 0) showToast(`💾 ${done}/${total} tile...`);
+      }
+    }
+  }
+
+  btn.textContent = '✅'; btn.style.background = 'var(--accent3)';
+  setTimeout(() => { btn.textContent = '💾'; btn.style.background = ''; }, 4000);
+  showToast(`✅ Đã lưu ${done - errors}/${total} tile! Dùng được offline.`);
+}
+
+function monitorOnline(){
+  const banner = document.getElementById('offlineBanner');
+  const pill = document.getElementById('syncPill');
+  window.addEventListener('online',  () => { banner.style.display='none';  pill.textContent='☁ Online';  pill.classList.remove('active'); showToast('🌐 Đã có mạng trở lại'); });
+  window.addEventListener('offline', () => { banner.style.display='block'; pill.textContent='📵 Offline'; pill.classList.add('active');    showToast('📵 Mất mạng – dùng bản đồ đã lưu'); });
+  if(!navigator.onLine){ banner.style.display='block'; pill.textContent='📵 Offline'; pill.classList.add('active'); }
+}
+// ── END OFFLINE CACHE ─────────────────────────────────────────────────────
+
+// ── CUSTOM KEYBOARD ───────────────────────────────────────────────────────
+let kbSymbols = [
+  // Hiện mặc định
+  {name:'v',   visible:true},
+  {name:'vd',  visible:true},
+  {name:'dt',  visible:true},
+  {name:'dtd', visible:true},
+  {name:'dv',  visible:true},
+  {name:'dvd', visible:true},
+  {name:'m',   visible:true},
+  {name:'md',  visible:true},
+  {name:'tn',  visible:true},
+  {name:'t',   visible:true, italic:true},        // "t" nghiêng - phân biệt với "t" thường bên dưới
+  {name:' ',   visible:true, label:'␣'},           // khoảng cách - hiện nút "␣" nhưng chèn 1 dấu cách thật
+  // Ẩn mặc định - bấm "Hiện tất cả" để xem
+  {name:'t',   visible:false},
+  {name:'tm',  visible:false},
+  {name:'mdan', visible:false},
+  {name:'mdanm',visible:false},
+  {name:'hdan', visible:false},
+  {name:'hdanm',visible:false},
+  {name:'bdan', visible:false},
+  {name:'bdanm',visible:false},
+  {name:'ga',  visible:false},
+  {name:'gam', visible:false},
+];
+let kbShowAllSyms = false;
+const kbFrequent = ['bdanm','mdan','bdan'];
+let kbNumStr='', kbSymStr='', kbSelSym=null, kbFreeMode=false;
+
+function kbSymFontSize(n){ return n<=4?'18px':n<=8?'15px':n<=12?'14px':'13px'; }
+
+function kbToggleShowAllSyms(){
+  kbShowAllSyms = !kbShowAllSyms;
+  const btn = document.getElementById('kbShowAllBtn');
+  if(btn) btn.textContent = kbShowAllSyms ? '🔽 Thu gọn' : '🔼 Hiện tất cả';
+  renderKbSymbols();
+}
+
+function renderKbSymbols(){
+  const grid=document.getElementById('kbSymGrid');
+  if(!grid)return;
+  grid.innerHTML='';
+  const vis=kbShowAllSyms ? kbSymbols : kbSymbols.filter(s=>s.visible);
+  const fs=kbSymFontSize(vis.length);
+  vis.forEach(s=>{
+    const btn=document.createElement('button');
+    btn.className='kb-sym'+(kbFrequent.includes(s.name)?' freq':'');
+    btn.textContent=s.label||s.name; btn.style.fontSize=fs;
+    if(s.italic) btn.style.fontStyle='italic';
+    if(kbSelSym===s.name) btn.classList.add('selected');
+    btn.onclick=()=>kbSym(s.name,btn);
+    grid.appendChild(btn);
+  });
+}
+
+function kbUpdatePreview(){
+  const val=kbFreeMode?document.getElementById('pointName').value:(kbNumStr+kbSymStr);
+  const disp=document.getElementById('pointNameDisplay');
+  if(disp) disp.innerHTML=(val||'_')+'<span id="kbCursor" style="display:inline-block;width:2px;height:22px;background:var(--accent3);margin-left:2px;vertical-align:middle;animation:pulse 1s infinite;"></span>';
+}
+
+let kbLastNum = 0;
+function kbNum(n){
+  kbNumStr+=n; kbUpdatePreview();
+}
+let kbDelTimer=null, kbDelInterval=null;
+function kbDelStart(){
+  kbDelTimer=setTimeout(()=>{
+    kbDelInterval=setInterval(()=>{ kbDel(); },80);
+  },400);
+}
+function kbDelEnd(e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  clearTimeout(kbDelTimer); clearInterval(kbDelInterval);
+  kbDelTimer=null; kbDelInterval=null;
+}
+function kbDel(){
+  if(kbSymStr){kbSymStr='';kbSelSym=null;renderKbSymbols();}
+  else kbNumStr=kbNumStr.slice(0,-1);
+  kbUpdatePreview();
+}
+function kbSym(s,btn){
+  document.querySelectorAll('.kb-sym').forEach(b=>b.classList.remove('selected'));
+  if(kbSelSym===s){kbSelSym=null;kbSymStr='';}
+  else{kbSelSym=s;kbSymStr=s;btn.classList.add('selected');}
+  kbUpdatePreview();
+}
+function kbToggleFree(){
+  kbFreeMode=!kbFreeMode;
+  const disp=document.getElementById('pointNameDisplay');
+  const inp=document.getElementById('pointName');
+  const editBtn=document.getElementById('kbEditBtn');
+  const numpad=document.getElementById('kbNumpad');
+  const symGrid=document.getElementById('kbSymGrid');
+  if(kbFreeMode){
+    inp.value=kbNumStr+kbSymStr;
+    disp.style.display='none'; inp.style.display='block';
+    editBtn.textContent='✓ Xong'; editBtn.style.background='var(--accent3)'; editBtn.style.color='#fff';
+    numpad.style.opacity='0.3'; numpad.style.pointerEvents='none';
+    symGrid.style.opacity='0.3'; symGrid.style.pointerEvents='none';
+    inp.focus();
+  } else {
+    kbNumStr=inp.value; kbSymStr=''; kbSelSym=null;
+    disp.style.display=''; inp.style.display='none';
+    editBtn.textContent='✏️ ABC'; editBtn.style.background=''; editBtn.style.color='';
+    numpad.style.opacity=''; numpad.style.pointerEvents='';
+    symGrid.style.opacity=''; symGrid.style.pointerEvents='';
+    renderKbSymbols(); kbUpdatePreview();
+  }
+}
+function kbClear(){
+  kbNumStr='';kbSymStr='';kbSelSym=null;kbFreeMode=false;
+  const disp=document.getElementById('pointNameDisplay');
+  const inp=document.getElementById('pointName');
+  const editBtn=document.getElementById('kbEditBtn');
+  const numpad=document.getElementById('kbNumpad');
+  const symGrid=document.getElementById('kbSymGrid');
+  if(disp){disp.style.display='';} if(inp){inp.style.display='none';inp.value='';}
+  if(editBtn){editBtn.textContent='✏️ ABC';editBtn.style.background='';editBtn.style.color='';}
+  if(numpad){numpad.style.opacity='';numpad.style.pointerEvents='';}
+  if(symGrid){symGrid.style.opacity='';symGrid.style.pointerEvents='';}
+  renderKbSymbols(); kbUpdatePreview();
+}
+
+function addPointModal(){
+  kbClear();
+  if(map){const c=map.getCenter();state.pinnedLat=c.lat;state.pinnedLng=c.lng;}
+  else if(state.currentLat){state.pinnedLat=state.currentLat;state.pinnedLng=state.currentLng;}
+  openModal('pointModal');
+  refreshModalGPS();
+  renderKbSymbols();
+  kbUpdatePreview();
+}
+
+function savePoint(){
+  const name = kbFreeMode
+    ? (document.getElementById('pointName').value.trim()||`M${state.measurePoints.length+1}`)
+    : ((kbNumStr+kbSymStr).trim()||`M${state.measurePoints.length+1}`);
+  if(state.pinnedLat===null && !state.currentLat){showToast('⏳ Chưa có tọa độ GPS');return;}
+  const useLat=state.pinnedLat!==null?state.pinnedLat:state.currentLat;
+  const useLng=state.pinnedLng!==null?state.pinnedLng:state.currentLng;
+  const point={id:Date.now(),name,type:'waypoint',note:'',lat:useLat,lng:useLng,alt:state.currentAlt,accuracy:state.pinnedLat!==null?0:state.accuracy,time:new Date().toLocaleString('vi-VN'),photo:state.currentPhotoData};
+  state.measurePoints.push(point);
+  if(state.currentPhotoData) state.photos.push({point:name,data:state.currentPhotoData});
+  state.pinnedLat=null;state.pinnedLng=null;
+  // Reset ảnh sau khi lưu
+  state.currentPhotoData=null;
+  const ps=document.getElementById('photoStatus'); if(ps) ps.textContent='Chưa có ảnh';
+  const pi=document.getElementById('pointPhotoInput'); if(pi) pi.value='';
+  const lm=addMapMarker(point.lat,point.lng,name,'#e3b341',point.id);
+  mapMarkers.push({lat:point.lat,lng:point.lng,name,id:point.id,_lm:lm});
+  map.panTo([point.lat,point.lng]);
+  renderMapOverlay();closeModal('pointModal');kbClear();renderPoints();updateStats();saveAppData();
+  showToast(`✅ Đã lưu ${name}`);
+}
+
+// Sym management modal
+function openSymModal(){ renderSymMgmtList(); openModal('symMgmtModal'); }
+function renderSymMgmtList(){
+  const list=document.getElementById('symMgmtList');
+  list.innerHTML=kbSymbols.map((s,i)=>`
+    <div class="sym-mgmt-item">
+      <span class="sym-mgmt-name ${s.visible?'':'off'}" style="${s.italic?'font-style:italic;':''}">${s.label||s.name}${s.italic?' (nghiêng)':''}</span>
+      <label class="kb-toggle">
+        <input type="checkbox" ${s.visible?'checked':''} onchange="kbSymToggle(${i},this.checked)">
+        <div class="kb-toggle-track"></div><div class="kb-toggle-thumb"></div>
+      </label>
+      <button onclick="kbSymDelete(${i})" style="background:rgba(247,129,102,.15);border:1px solid rgba(247,129,102,.3);color:var(--accent);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;">🗑</button>
+    </div>`).join('');
+}
+function kbSymToggle(i,v){kbSymbols[i].visible=v;renderSymMgmtList();}
+function kbSymDelete(i){
+  if(!confirm('Xóa "'+kbSymbols[i].name+'"?'))return;
+  kbSymbols.splice(i,1);renderSymMgmtList();
+}
+function addNewKbSym(){
+  const inp=document.getElementById('newSymInput');
+  const val=inp.value.trim();
+  if(!val)return;
+  if(kbSymbols.find(s=>s.name===val)){showToast('⚠️ Đã tồn tại');return;}
+  kbSymbols.push({name:val,visible:true});
+  inp.value='';renderSymMgmtList();
+}
+// ── END CUSTOM KEYBOARD ───────────────────────────────────────────────────
+
+window.addEventListener('load', async () => {
+  await openTileDB();
+  let hasData = false;
+  try { hasData = await loadAppData(); } catch(e){ console.warn('loadAppData lỗi:', e); }
+  initMap();
+  startGPS();
+  renderSurveys();
+  renderPoints();
+  updateStats();
+  monitorOnline();
+  if(hasData && state.measurePoints.length){
+    state.measurePoints.forEach(p=>{
+      const lm = addMapMarker(p.lat, p.lng, p.name, '#e3b341', p.id);
+      mapMarkers.push({lat:p.lat, lng:p.lng, name:p.name, id:p.id, _lm:lm});
+    });
+    if(state.trackPoints.length && trackLine) trackLine.setLatLngs(state.trackPoints);
+    renderMapOverlay();
+    const rn = document.getElementById('currentRouteName'); if(rn) rn.textContent = state.currentRouteName;
+    const rs = document.getElementById('rptStart'); if(rs && state.startTime) rs.textContent = new Date(state.startTime).toLocaleString('vi-VN');
+    const sn = document.getElementById('surveyNotes'); if(sn && state.surveyNotes) sn.value = state.surveyNotes;
+    showToast(`📂 Đã khôi phục: ${state.measurePoints.length} điểm`);
+  }
+});
+</script>
+</body>
+</html>
